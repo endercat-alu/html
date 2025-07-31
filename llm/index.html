@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>语言模型生成模拟器</title>
+    <style>
+        body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; background-color: #f0f2f5; color: #333; display: flex; justify-content: center; align-items: flex-start; padding-top: 20px; height: 100vh; margin: 0; box-sizing: border-box; }
+        .container { width: 90%; max-width: 1000px; background-color: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; }
+        .training-section { margin-bottom: 15px; }
+        #corpus-input { width: 95%; height: 80px; padding: 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 1em; }
+        #train-button { margin-top: 10px; padding: 10px 20px; background-color: #6a5acd; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; }
+        .generation-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; align-items: center; margin-bottom: 15px; }
+        #auto-play-button { padding: 10px 20px; background-color: #32cd32; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; grid-column: 2 / 3; grid-row: 1 / 3; }
+        label { display: block; text-align: left; }
+        #start-word-selector { margin-bottom: 15px; padding: 10px; border: 1px solid #eee; border-radius: 8px; max-height: 100px; overflow-y: auto; }
+        .start-word { display: inline-block; padding: 5px 10px; margin: 3px; background-color: #f0f0f0; border-radius: 15px; cursor: pointer; transition: background-color 0.2s; }
+        .text-area-container { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; min-height: 50px; text-align: left; background-color: #fafafa; border-radius: 8px;}
+        #generated-text { font-size: 1.2em; word-wrap: break-word; }
+        #llm-output-container { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: 8px; padding: 15px; border: 2px dashed #6a5acd; border-radius: 8px; min-height: 150px; }
+        .token-prob { display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: transform 0.2s ease; }
+        .bar { width: 40px; background: linear-gradient(to top, #8878E2, #CE9FFC); border-radius: 5px 5px 0 0; margin-bottom: 5px; transition: height 0.3s ease-in-out; }
+        .stop-bar { background: linear-gradient(to top, #ff6b6b, #ff8e8e); }
+        .label { font-size: 0.8em; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>LLM 生成模拟器</h1>
+    <div class="training-section">
+        <textarea id="corpus-input" placeholder="请在此处输入训练文本..."></textarea>
+        <button id="train-button">学习文本 & 构建模型</button>
+    </div>
+    <div id="start-word-selector"><p style="color:#aaa">训练后，在此选择一个起始词</p></div>
+    <div class="text-area-container"><p id="generated-text"></p></div>
+    
+    <div class="generation-controls">
+        <div>
+           <label for="temperature-slider">温度 (随机性): <span id="temp-value">1.0</span></label>
+           <input type="range" id="temperature-slider" min="0.1" max="2" value="1" step="0.1">
+        </div>
+        <div>
+           <label for="repetition-penalty-slider">重复惩罚: <span id="penalty-value">1.0</span></label>
+           <input type="range" id="repetition-penalty-slider" min="1" max="3" value="1" step="0.1">
+        </div>
+        <button id="auto-play-button" disabled>自动生成</button>
+    </div>
+
+    <div id="llm-output-container"></div>
+</div>
+
+<script>
+    const generatedTextElement = document.getElementById('generated-text');
+    const llmOutputContainer = document.getElementById('llm-output-container');
+    const temperatureSlider = document.getElementById('temperature-slider');
+    const tempValueSpan = document.getElementById('temp-value');
+    const repetitionPenaltySlider = document.getElementById('repetition-penalty-slider');
+    const penaltyValueSpan = document.getElementById('penalty-value');
+    const corpusInput = document.getElementById('corpus-input');
+    const trainButton = document.getElementById('train-button');
+    const autoPlayButton = document.getElementById('auto-play-button');
+    const startWordSelector = document.getElementById('start-word-selector');
+
+    const STOP_TOKEN = "[停止]";
+    const CONTEXT_WINDOW = 10;
+    let trainedModel = {}, vocab = [], baseProbabilities = [];
+    let generationHalted = true, isAutoplaying = false, autoPlayInterval = null;
+    
+    function applyTemperatureAndDraw() {
+        const temperature = parseFloat(temperatureSlider.value);
+        const repetitionPenalty = parseFloat(repetitionPenaltySlider.value);
+        tempValueSpan.textContent = temperature.toFixed(1);
+        penaltyValueSpan.textContent = repetitionPenalty.toFixed(1);
+
+        if (generationHalted) return;
+        
+        llmOutputContainer.innerHTML = '';
+        const recentWords = new Set(generatedTextElement.textContent.split(/\s+/).slice(-CONTEXT_WINDOW));
+        const penalizedProbs = baseProbabilities.map((prob, index) => {
+            const word = vocab[index];
+            return recentWords.has(word) ? prob / repetitionPenalty : prob;
+        });
+
+        const temperedProbs = penalizedProbs.map(p => Math.pow(p, 1 / temperature));
+        const sumProbs = temperedProbs.reduce((a, b) => a + b, 0);
+        const normalizedProbs = sumProbs > 0 ? temperedProbs.map(p => p / sumProbs) : [];
+        const maxNormProb = Math.max(...normalizedProbs, 0);
+        
+        vocab.forEach((token, index) => {
+            const prob = normalizedProbs[index] || 0;
+            const tokenElement = document.createElement('div'), barElement = document.createElement('div'), labelElement = document.createElement('div');
+            tokenElement.className = 'token-prob';
+            barElement.className = 'bar';
+            if (token === STOP_TOKEN) {
+                barElement.classList.add('stop-bar');
+                tokenElement.addEventListener('click', haltGeneration);
+            } else {
+                tokenElement.addEventListener('click', () => {
+                    if (isAutoplaying) return;
+                    generatedTextElement.textContent += ` ${token}`;
+                    generateNextTokenProbabilities();
+                });
+            }
+            barElement.style.height = `${maxNormProb > 0 ? (prob / maxNormProb) * 120 + 20 : 20}px`;
+            labelElement.className = 'label';
+            labelElement.textContent = token;
+            tokenElement.appendChild(barElement);
+            tokenElement.appendChild(labelElement);
+            llmOutputContainer.appendChild(tokenElement);
+        });
+    }
+
+    function updateSliderLabels() {
+        tempValueSpan.textContent = parseFloat(temperatureSlider.value).toFixed(1);
+        penaltyValueSpan.textContent = parseFloat(repetitionPenaltySlider.value).toFixed(1);
+    }
+    
+    function findBestToken() {
+        const temperature = parseFloat(temperatureSlider.value);
+        const repetitionPenalty = parseFloat(repetitionPenaltySlider.value);
+        const recentWords = new Set(generatedTextElement.textContent.split(/\s+/).slice(-CONTEXT_WINDOW));
+        let maxFinalProb = -1;
+        let bestToken = '';
+        baseProbabilities.forEach((prob, index) => {
+            const word = vocab[index];
+            let penalizedProb = recentWords.has(word) ? prob / repetitionPenalty : prob;
+            let finalProb = Math.pow(penalizedProb, 1 / temperature);
+            if(finalProb > maxFinalProb) {
+                maxFinalProb = finalProb;
+                bestToken = word;
+            }
+        });
+        return bestToken;
+    }
+
+    function toggleAutoplay() {
+        if (isAutoplaying) {
+            clearInterval(autoPlayInterval); autoPlayButton.textContent = '自动生成'; autoPlayButton.style.backgroundColor = '#32cd32'; isAutoplaying = false;
+        } else {
+            isAutoplaying = true; autoPlayButton.textContent = '暂停'; autoPlayButton.style.backgroundColor = '#ff4500';
+            autoPlayInterval = setInterval(() => {
+                if (generationHalted) { toggleAutoplay(); return; }
+                const bestToken = findBestToken();
+                if (bestToken === STOP_TOKEN || !bestToken) { haltGeneration(); } 
+                else { generatedTextElement.textContent += ` ${bestToken}`; generateNextTokenProbabilities(); }
+            }, 500);
+        }
+    }
+
+    function trainModel() {
+        generationHalted = true; isAutoplaying = false; clearInterval(autoPlayInterval);
+        const text = corpusInput.value; const words = text.split(/\s+/).filter(w => w.length > 0);
+        if (words.length < 2) { alert("训练文本过短，至少需要两个词。"); return; }
+        const uniqueWords = new Set(words); uniqueWords.add(STOP_TOKEN); vocab = [...uniqueWords].sort();
+        trainedModel = {};
+        for (let i = 0; i < words.length - 1; i++) {
+            const currentWord = words[i], nextWord = words[i + 1];
+            if (!trainedModel[currentWord]) trainedModel[currentWord] = {}; if (!trainedModel[currentWord][nextWord]) trainedModel[currentWord][nextWord] = 0; trainedModel[currentWord][nextWord]++;
+        }
+        const sentenceEnders = ['。', '！', '？', '.'];
+        sentenceEnders.forEach(ender => {
+            if (vocab.includes(ender)) {
+              if (!trainedModel[ender]) trainedModel[ender] = {};
+              trainedModel[ender][STOP_TOKEN] = (trainedModel[ender][STOP_TOKEN] || 0) + 10;
+            }
+        });
+        displayStartWordSelector(); generatedTextElement.textContent = ""; llmOutputContainer.innerHTML = ""; autoPlayButton.textContent = '自动生成'; autoPlayButton.style.backgroundColor = '#32cd32'; autoPlayButton.disabled = true;
+        alert("学习完成！请选择一个起始词来开始生成。");
+    }
+
+    function displayStartWordSelector() {
+        startWordSelector.innerHTML = '';
+        vocab.forEach(word => {
+            if (word === STOP_TOKEN) return;
+            const wordEl = document.createElement('span'); wordEl.className = 'start-word'; wordEl.textContent = word;
+            wordEl.addEventListener('click', () => startGeneration(word));
+            startWordSelector.appendChild(wordEl);
+        });
+    }
+
+    function startGeneration(word) {
+        generatedTextElement.textContent = word; generationHalted = false;
+        startWordSelector.innerHTML = '<p style="color:#aaa">生成中... 可随时重新训练。</p>'; autoPlayButton.disabled = false;
+        generateNextTokenProbabilities();
+    }
+
+    function haltGeneration() {
+        generationHalted = true;
+        if (isAutoplaying) toggleAutoplay();
+        llmOutputContainer.innerHTML = '<p style="color: #ff6b6b; font-weight: bold;">[生成结束]</p>';
+        autoPlayButton.disabled = true;
+    }
+
+    function generateNextTokenProbabilities() {
+        if (vocab.length === 0 || generationHalted) return;
+        const currentText = generatedTextElement.textContent;
+        const words = currentText.split(/\s+/);
+        const lastWord = words[words.length - 1];
+        if (trainedModel[lastWord]) {
+            const nextWordCounts = trainedModel[lastWord];
+            baseProbabilities = vocab.map(word => nextWordCounts[word] ? nextWordCounts[word] : Math.random() * 0.1);
+        } else {
+            baseProbabilities = vocab.map(() => Math.random());
+        }
+        applyTemperatureAndDraw();
+    }
+    
+    trainButton.addEventListener('click', trainModel);
+    autoPlayButton.addEventListener('click', toggleAutoplay);
+    temperatureSlider.addEventListener('input', applyTemperatureAndDraw);
+    repetitionPenaltySlider.addEventListener('input', applyTemperatureAndDraw);
+    
+    document.addEventListener('DOMContentLoaded', updateSliderLabels);
+</script>
+
+</body>
+</html>
