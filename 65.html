@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>随机数生成器与目标值匹配</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .controls {
+            padding: 30px;
+            background: white;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .input-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .input-field {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .input-field label {
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 1.1em;
+        }
+
+        .input-field input {
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 1.1em;
+            transition: all 0.3s ease;
+        }
+
+        .input-field input:focus {
+            outline: none;
+            border-color: #4ecdc4;
+            box-shadow: 0 0 10px rgba(78, 205, 196, 0.3);
+        }
+
+        .methods-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .method-card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            border-radius: 15px;
+            padding: 20px;
+            color: white;
+            transition: transform 0.3s ease;
+        }
+
+        .method-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .method-card h3 {
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .method-card button {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .method-card button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .method-card .input-field input {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .method-card .input-field input::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .mouse-area {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 10px;
+            text-align: center;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: crosshair;
+        }
+
+        .results {
+            padding: 30px;
+            background: #f8f9fa;
+        }
+
+        .result-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            border-left: 5px solid #4ecdc4;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .result-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .match-count {
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+
+        .result-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .stat {
+            text-align: center;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #4ecdc4;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .matches-list {
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .match-item {
+            padding: 5px 0;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .progress {
+            width: 100%;
+            height: 6px;
+            background: #ddd;
+            border-radius: 3px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            border-radius: 3px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .entropy-display {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            color: white;
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .input-group {
+                grid-template-columns: 1fr;
+            }
+            
+            .methods-section {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎲 随机数生成器与目标值匹配</h1>
+            <p>三种熵源生成随机数并查找目标值</p>
+        </div>
+
+        <div class="controls">
+            <div class="input-group">
+                <div class="input-field">
+                    <label for="length">随机数长度</label>
+                    <input type="number" id="length" value="8" min="1" max="20">
+                </div>
+                <div class="input-field">
+                    <label for="times">生成次数</label>
+                    <input type="number" id="times" value="1000" min="1" max="10000">
+                </div>
+                <div class="input-field">
+                    <label for="target">目标值</label>
+                    <input type="text" id="target" value="12345678" placeholder="输入要查找的数字">
+                </div>
+            </div>
+
+            <div class="methods-section">
+                <div class="method-card">
+                    <h3>🔐 浏览器加密随机数</h3>
+                    <p>使用 crypto.getRandomValues() 生成高质量随机数</p>
+                    <button onclick="generateCryptoRandom()">开始生成</button>
+                    <div class="progress">
+                        <div class="progress-bar" id="crypto-progress"></div>
+                    </div>
+                </div>
+
+                <div class="method-card">
+                    <h3>🖱️ 鼠标熵池</h3>
+                    <p>基于鼠标移动轨迹生成随机数</p>
+                    <div class="mouse-area" id="mouseArea">
+                        在此区域移动鼠标收集熵值
+                    </div>
+                    <button onclick="generateMouseRandom()">开始生成</button>
+                    <div class="progress">
+                        <div class="progress-bar" id="mouse-progress"></div>
+                    </div>
+                    <div class="entropy-display" id="mouseEntropy">熵池: 0 字节</div>
+                </div>
+
+                <div class="method-card">
+                    <h3>⌨️ 键盘动力学</h3>
+                    <p>基于键盘输入间隔和字符码生成随机数</p>
+                    <div class="input-field" style="margin-top: 10px;">
+                         <input type="text" id="keyboardArea" placeholder="在此输入文字收集熵...">
+                    </div>
+                    <button onclick="generateKeyboardRandom()">开始生成</button>
+                    <div class="progress">
+                        <div class="progress-bar" id="keyboard-progress"></div>
+                    </div>
+                    <div class="entropy-display" id="keyboardEntropy">熵池: 0 字节</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="results" id="results">
+            <!-- 结果将在这里显示 -->
+        </div>
+    </div>
+
+    <script>
+        let mouseEntropy = [];
+        let keyboardEntropy = [];
+
+        // 鼠标熵池收集
+        document.getElementById('mouseArea').addEventListener('mousemove', function(e) {
+            const rect = this.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const time = performance.now();
+            
+            mouseEntropy.push(x ^ y ^ (time * 1000));
+            
+            if (mouseEntropy.length > 1000) {
+                mouseEntropy = mouseEntropy.slice(-1000);
+            }
+            
+            document.getElementById('mouseEntropy').textContent = 
+                `熵池: ${mouseEntropy.length} 字节`;
+        });
+
+        // 键盘动力学熵池收集
+        document.getElementById('keyboardArea').addEventListener('keydown', function(e) {
+            const time = performance.now();
+            const key = e.keyCode; // 使用keyCode简化处理
+            
+            keyboardEntropy.push(key ^ (time * 1000));
+            
+            if (keyboardEntropy.length > 1000) {
+                keyboardEntropy = keyboardEntropy.slice(-1000);
+            }
+            
+            document.getElementById('keyboardEntropy').textContent = 
+                `熵池: ${keyboardEntropy.length} 字节`;
+        });
+
+
+        // 生成浏览器加密随机数
+        async function generateCryptoRandom() {
+            const length = parseInt(document.getElementById('length').value);
+            const times = parseInt(document.getElementById('times').value);
+            const target = document.getElementById('target').value;
+            
+            let matches = [];
+            let numbers = [];
+            
+            const progressBar = document.getElementById('crypto-progress');
+            progressBar.style.width = '0%';
+            
+            for (let i = 0; i < times; i++) {
+                const array = new Uint32Array(Math.ceil(length / 4));
+                crypto.getRandomValues(array);
+                
+                let randomStr = '';
+                for (let j = 0; j < array.length; j++) {
+                    randomStr += array[j].toString();
+                }
+                randomStr = randomStr.substring(0, length);
+                
+                numbers.push(randomStr);
+                
+                if (randomStr.includes(target)) {
+                    matches.push({
+                        index: i + 1,
+                        value: randomStr,
+                        positions: findAllPositions(randomStr, target)
+                    });
+                }
+                
+                if (i % 100 === 0) {
+                    progressBar.style.width = ((i + 1) / times * 100) + '%';
+                    await new Promise(resolve => setTimeout(resolve, 1));
+                }
+            }
+            progressBar.style.width = '100%';
+            displayResults('浏览器加密随机数', numbers, matches, target);
+        }
+
+        // 生成鼠标熵随机数
+        async function generateMouseRandom() {
+            if (mouseEntropy.length < 100) {
+                alert('请先在鼠标区域移动鼠标收集足够的熵值！');
+                return;
+            }
+            
+            const length = parseInt(document.getElementById('length').value);
+            const times = parseInt(document.getElementById('times').value);
+            const target = document.getElementById('target').value;
+            
+            let matches = [];
+            let numbers = [];
+            
+            const progressBar = document.getElementById('mouse-progress');
+            progressBar.style.width = '0%';
+            
+            for (let i = 0; i < times; i++) {
+                let randomStr = '';
+                for (let j = 0; j < length; j++) {
+                    const entropyIndex = (i * length + j) % mouseEntropy.length;
+                    const nextIndex = (entropyIndex + 1) % mouseEntropy.length;
+                    const combined = mouseEntropy[entropyIndex] ^ mouseEntropy[nextIndex] ^ Date.now();
+                    randomStr += Math.abs(combined) % 10;
+                }
+                
+                numbers.push(randomStr);
+                
+                if (randomStr.includes(target)) {
+                    matches.push({
+                        index: i + 1,
+                        value: randomStr,
+                        positions: findAllPositions(randomStr, target)
+                    });
+                }
+                
+                if (i % 100 === 0) {
+                    progressBar.style.width = ((i + 1) / times * 100) + '%';
+                    await new Promise(resolve => setTimeout(resolve, 1));
+                }
+            }
+            progressBar.style.width = '100%';
+            displayResults('鼠标熵池随机数', numbers, matches, target);
+        }
+
+        // 生成键盘熵随机数
+        async function generateKeyboardRandom() {
+            if (keyboardEntropy.length < 50) {
+                alert('请先在输入框中输入一些文字来收集足够的熵！');
+                return;
+            }
+
+            const length = parseInt(document.getElementById('length').value);
+            const times = parseInt(document.getElementById('times').value);
+            const target = document.getElementById('target').value;
+            
+            let matches = [];
+            let numbers = [];
+            
+            const progressBar = document.getElementById('keyboard-progress');
+            progressBar.style.width = '0%';
+            
+            for (let i = 0; i < times; i++) {
+                let randomStr = '';
+                for (let j = 0; j < length; j++) {
+                    const entropyIndex = (i * length + j) % keyboardEntropy.length;
+                    const nextIndex = (entropyIndex + 1) % keyboardEntropy.length;
+                    const combined = keyboardEntropy[entropyIndex] ^ keyboardEntropy[nextIndex] ^ performance.now();
+                    randomStr += Math.abs(Math.floor(combined)) % 10;
+                }
+                
+                numbers.push(randomStr);
+                
+                if (randomStr.includes(target)) {
+                    matches.push({
+                        index: i + 1,
+                        value: randomStr,
+                        positions: findAllPositions(randomStr, target)
+                    });
+                }
+                
+                if (i % 100 === 0) {
+                    progressBar.style.width = ((i + 1) / times * 100) + '%';
+                    await new Promise(resolve => setTimeout(resolve, 1));
+                }
+            }
+            progressBar.style.width = '100%';
+            displayResults('键盘动力学随机数', numbers, matches, target);
+        }
+
+        // 查找所有匹配位置
+        function findAllPositions(str, target) {
+            let positions = [];
+            let index = str.indexOf(target);
+            while (index !== -1) {
+                positions.push(index);
+                index = str.indexOf(target, index + 1);
+            }
+            return positions;
+        }
+
+        // 显示结果
+        function displayResults(method, numbers, matches, target) {
+            const resultsDiv = document.getElementById('results');
+            
+            const matchRate = (matches.length / numbers.length * 100).toFixed(2);
+            
+            const resultHTML = `
+                <div class="result-card">
+                    <div class="result-header">
+                        <div class="result-title">${method}</div>
+                        <div class="match-count">${matches.length} 次匹配</div>
+                    </div>
+                    
+                    <div class="result-details">
+                        <div class="stat">
+                            <div class="stat-value">${numbers.length}</div>
+                            <div class="stat-label">总生成次数</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value">${matches.length}</div>
+                            <div class="stat-label">匹配次数</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value">${matchRate}%</div>
+                            <div class="stat-label">匹配率</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value">${target}</div>
+                            <div class="stat-label">目标值</div>
+                        </div>
+                    </div>
+                    
+                    ${matches.length > 0 ? `
+                    <div class="matches-list">
+                        <strong>匹配详情:</strong><br>
+                        ${matches.slice(0, 50).map(match => 
+                            `第${match.index}次: ${match.value} (位置: ${match.positions.join(', ')})`
+                        ).join('<br>')}
+                        ${matches.length > 50 ? '<br>... 显示前50条匹配结果' : ''}
+                    </div>
+                    ` : '<p style="text-align: center; color: #666; margin: 20px 0;">未找到匹配的结果</p>'}
+                </div>
+            `;
+            
+            resultsDiv.insertAdjacentHTML('afterbegin', resultHTML);
+        }
+    </script>
+</body>
+</html>
