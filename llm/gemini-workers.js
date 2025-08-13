@@ -6,7 +6,7 @@
  */
 
 const CONFIG = {
-  upstream_url_base: "https://geminis.sakurayuri.top",
+  upstream_url_base: "https://api-proxy.me/gemini",
   max_consecutive_retries: 3,
   debug_mode: true,
   retry_delay_ms: 750,
