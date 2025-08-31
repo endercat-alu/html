@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>内部事项提报系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'SimSun', 'Arial', sans-serif; /* 经典的宋体/Arial字体 */
+            background-color: #d4d0c8; /* Windows经典灰色 */
+        }
+        .win-bezel { /* 模拟经典Windows窗口的边框和阴影 */
+            border-top: 2px solid #ffffff;
+            border-left: 2px solid #ffffff;
+            border-right: 2px solid #808080;
+            border-bottom: 2px solid #808080;
+            box-shadow: 2px 2px 4px #000000;
+        }
+        .win-button { /* 模拟经典按钮 */
+            border-top: 1px solid #ffffff;
+            border-left: 1px solid #ffffff;
+            border-right: 1px solid #000000;
+            border-bottom: 1px solid #000000;
+            background-color: #c0c0c0;
+            box-shadow: 1px 1px 2px #808080;
+        }
+        .win-button:active {
+            border-top: 1px solid #000000;
+            border-left: 1px solid #000000;
+            border-right: 1px solid #ffffff;
+            border-bottom: 1px solid #ffffff;
+        }
+        .win-input {
+             border-top: 1px solid #808080;
+             border-left: 1px solid #808080;
+             border-right: 1px solid #ffffff;
+             border-bottom: 1px solid #ffffff;
+        }
+        /* 移除了所有动画效果，让一切瞬间发生 */
+        .status-item {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .spinner {
+            border-top-color: #000080; /* 经典蓝色 */
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        /* 故意破坏移动端布局 */
+        @media (max-width: 640px) {
+            .path-buttons-container {
+                width: 1150%; /* 让容器超出屏幕宽度 */
+            }
+        }
+        /* 评分星星样式 */
+        .star {
+            cursor: pointer; /* 让所有星星看起来都能点 */
+            transition: transform 0.1s;
+        }
+        .star:hover {
+            transform: scale(1.2); /* 悬停时放大，增加迷惑性 */
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <!-- 登录页面 -->
+    <div id="login-screen" class="w-full max-w-md bg-[#c0c0c0] p-6 win-bezel">
+        <div id="login-form-container">
+            <h1 class="text-xl font-bold text-center text-black mb-6">内部事项提报系统</h1>
+            <form id="login-form" class="space-y-4">
+                <div id="login-error" class="hidden text-red-700 font-bold text-center p-2 bg-red-200 border border-red-700"></div>
+                <div>
+                    <label for="username" class="block text-sm font-medium text-black">工号:</label>
+                    <input type="text" id="username" class="mt-1 block w-full win-input p-1 bg-white" value="user">
+                </div>
+                <div>
+                    <label for="password" class="block text-sm font-medium text-black">密码:</label>
+                    <input type="text" id="password" class="mt-1 block w-full win-input p-1 bg-white" value="password"> <!-- 密码框改为明文 -->
+                </div>
+                <div class="flex items-end gap-2">
+                    <div class="flex-grow">
+                        <label for="captcha" class="block text-sm font-medium text-black">验证码:</label>
+                        <input type="text" id="captcha" class="mt-1 block w-full win-input p-1 bg-white">
+                    </div>
+                    <div class="bg-gray-300 h-8 w-24 flex items-center justify-center win-input">
+                        <img src="https://this.image.does.not.exist/captcha.jpg" alt="无法加载" class="h-full w-full" onerror="this.alt='无法加载'; this.style.textAlign='center'; this.style.lineHeight='2rem'; this.style.color='#666';">
+                    </div>
+                </div>
+                <div class="pt-2 space-y-2">
+                    <button type="submit" class="w-full win-button py-2 px-4">登 录</button>
+                    <button type="button" id="reset-password-btn" class="w-full win-button py-1 text-xs">忘记密码?</button>
+                </div>
+            </form>
+        </div>
+        <!-- 密码重置表单 (默认隐藏) -->
+        <div id="password-reset-container" class="hidden">
+             <h1 class="text-xl font-bold text-center text-black mb-4">密码重置申请</h1>
+             <p class="text-sm text-black mb-4">根据安全规定，您需要提交一份详细的情况说明（不少于200字），阐述您忘记密码的原因、经过以及对后续加强密码安全管理的承诺。</p>
+             <textarea id="reset-reason" rows="8" class="w-full win-input p-1 bg-white"></textarea>
+             <div id="reset-message" class="hidden text-blue-800 font-bold text-center p-2 bg-blue-200 border border-blue-700 mt-4"></div>
+             <div class="pt-4 space-y-2">
+                <button id="submit-reset-btn" type="button" class="w-full win-button py-2">提交申请</button>
+                <button id="back-to-login-btn" type="button" class="w-full win-button py-1 text-xs">返回登录</button>
+             </div>
+        </div>
+    </div>
+
+    <!-- 主应用页面 (默认隐藏) -->
+    <div id="app-container" class="w-full max-w-4xl bg-[#c0c0c0] p-6 my-8 hidden win-bezel">
+        
+        <header class="text-center mb-6 border-b-2 border-gray-400 pb-4">
+            <h1 class="text-2xl font-bold text-black">内部事项提报系统</h1>
+            <p class="text-gray-700 mt-1 text-sm">—— 聚焦痛点，高效协同</p>
+        </header>
+
+        <div class="grid md:grid-cols-2 gap-6">
+            <fieldset class="border-2 border-gray-500 p-4">
+                <legend class="px-2 font-bold">问题抓手与路径选择</legend>
+                <form id="request-form" class="space-y-4">
+                    <div>
+                        <label for="request-type" class="block text-sm font-medium text-black">赋能类型:</label>
+                        <select id="request-type" name="request-type" class="mt-1 block w-full win-input p-1 bg-white">
+                            <option>基层维修需求</option>
+                            <option>优化建议抓手</option>
+                            <option value="anonymous-report">匿名举报</option>
+                            <option>其他痛点反馈</option>
+                        </select>
+                    </div>
+                    <div id="id-card-field" class="hidden">
+                        <label for="id-card" class="block text-sm font-bold text-red-700">身份证号码 (必填):</label>
+                        <input type="text" id="id-card" class="mt-1 block w-full win-input p-1 bg-white" placeholder="为确保匿名性，请输入您的真实身份证号">
+                    </div>
+                    <div>
+                        <label for="title" class="block text-sm font-medium text-black">事项标题 (高度概括):</label>
+                        <input type="text" id="title" class="mt-1 block w-full win-input p-1 bg-white" placeholder="例如：关于优化管理颗粒度的若干思考">
+                    </div>
+                    <div>
+                        <label for="content" class="block text-sm font-medium text-black">具体内容 (请使用官方书面语):</label>
+                        <textarea id="content" rows="6" class="mt-1 block w-full win-input p-1 bg-white" placeholder="详细阐述问题、现状、痛点、发力点..."></textarea>
+                    </div>
+                    
+                    <div class="pt-2 overflow-hidden"> <!-- 父容器隐藏溢出 -->
+                        <p class="text-sm text-black mb-2">请选择提报路径:</p>
+                        <div class="path-buttons-container grid grid-cols-2 gap-2">
+                            <button type="button" class="submit-btn win-button py-2">一键直达</button>
+                            <button type="button" class="submit-btn win-button py-2">绿色通道</button>
+                            <button type="button" class="submit-btn win-button py-2">层级上报</button>
+                            <button type="button" class="submit-btn win-button py-2">加急督办</button>
+                        </div>
+                    </div>
+                </form>
+            </fieldset>
+
+            <fieldset class="border-2 border-gray-500 p-4">
+                <legend class="px-2 font-bold">流程状态可视化看板</legend>
+                <div id="status-updates" class="space-y-2 h-80 overflow-y-auto pr-2 bg-white win-input p-2">
+                    <div class="text-center text-gray-500 pt-16">
+                        <p class="mt-4">暂无流转事项</p>
+                    </div>
+                </div>
+            </fieldset>
+        </div>
+
+        <footer class="text-center text-xs text-gray-700 mt-8 border-t-2 border-gray-400 pt-3">
+            <p>版权所有 &copy; 2005-2025 数字化转型办公室</p>
+            <p>内部系统，请勿外传</p>
+        </footer>
+    </div>
+
+    <!-- 强制评分弹窗 -->
+    <div id="rating-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-[#c0c0c0] p-6 win-bezel w-full max-w-sm">
+            <h2 class="text-lg font-bold text-center text-black mb-4">请对本次服务进行评价</h2>
+            <div class="flex justify-center items-center space-x-2 text-3xl">
+                <span class="star text-yellow-500">&#9733;</span>
+                <span class="star text-yellow-500">&#9733;</span>
+                <span class="star text-yellow-500">&#9733;</span>
+                <span class="star text-yellow-500">&#9733;</span>
+                <span id="five-star" class="star text-yellow-500">&#9733;</span>
+            </div>
+            <p class="text-center text-xs text-gray-700 mt-4">感谢您的反馈，您的满意是我们前进的动力。</p>
+        </div>
+    </div>
+
+    <script>
+        // --- DEBUG COMMAND ---
+        window.money = function(amount) {
+            if (typeof amount !== 'number' || amount < 0) {
+                console.error("赞助金额必须为正数！");
+                return;
+            }
+            window.briberyFactor = amount;
+            if (amount > 100000) {
+                console.log('%c[DEBUG] 特别赞助已确认。流程将确保畅通无阻。', 'color: #16a34a; font-weight: bold;');
+            } else if (amount > 1000) {
+                console.log(`%c[DEBUG] 收到 ${amount} 的赞助。流程通过率已得到显著提升。`, 'color: #f59e0b;');
+            } else {
+                 console.warn(`[DEBUG] 警告: ${amount} 的赞助额度过低，可能触发廉政风险监控。`);
+            }
+        };
+        // -------------------
+
+        window.briberyFactor = 0;
+        window.accountLocked = false;
+        let isAnonymousReport = false;
+
+        const oaSteps = [
+            { name: "分发中心自动定责", failRate: 0.1, failMsg: "定责失败，系统无法识别问题归属，已退回至待处理池。" },
+            { name: "部门负责人初审", failRate: 0.3, failMsg: "材料不规范，缺少量化指标，流程已打回。" },
+            { name: "合规性审查", failRate: 0.2, failMsg: "经审查，事项与现有管理规定存在冲突，不予通过。" },
+            { name: "跨部门会签（法务）", failRate: 0.4, failMsg: "法务认为存在潜在风险，会签不通过。" },
+            { name: "跨部门会签（财务）", failRate: 0.4, failMsg: "财务认为缺少预算支撑，会签不通过。" },
+            { name: "风险评估与压力测试", failRate: 0.25, failMsg: "压力测试未通过，存在不确定性风险，流程中止。" },
+            { name: "专家组评审", failRate: 0.5, failMsg: "专家组意见不统一，建议进一步调研，流程已挂起。" },
+            { name: "分管领导审批", failRate: 0.6, failMsg: "相关领导正在外出调研，审批流程延后。" },
+            { name: "决策委员会审议", failRate: 0.7, failMsg: "委员会认为该事项缺乏全局视野，未纳入议程。" },
+            { name: "档案中心备案", failRate: 0.05, failMsg: "备案系统接口异常，数据写入失败。" },
+            { name: "执行部门对接", failRate: 0.5, failMsg: "执行部门表示人力资源紧张，无法承接新任务。" },
+            { name: "进入执行队列", failRate: 0.1, failMsg: "系统调度失败，未能成功进入执行队列。" }
+        ];
+
+        const finalRejections = [
+            "经多方研判，您的建议缺乏顶层设计考量，暂不具备可行性。感谢您的参与。",
+            "该问题涉及历史遗留因素，情况复杂，需从长计议，建立常态化沟通机制。目前已归档处理。",
+            "我们高度重视您的反馈。为进一步优化资源配置，形成管理闭环，相关事项将纳入下一阶段的整体规划。请耐心等待后续通知。",
+            "您的反馈已收悉。相关问题需要拉通对齐各方意见，打通底层逻辑，形成组合拳。我们将持续关注。",
+            "为确保资源的高效利用和聚焦核心业务，您的提议将作为重要参考，在后续的战略复盘中予以考量。"
+        ];
+
+        // DOM Elements
+        const loginScreen = document.getElementById('login-screen');
+        const appContainer = document.getElementById('app-container');
+        const loginFormContainer = document.getElementById('login-form-container');
+        const passwordResetContainer = document.getElementById('password-reset-container');
+        const loginForm = document.getElementById('login-form');
+        const loginError = document.getElementById('login-error');
+        const statusUpdates = document.getElementById('status-updates');
+        const submitButtons = document.querySelectorAll('.submit-btn');
+        const requestForm = document.getElementById('request-form');
+        const requestTypeSelect = document.getElementById('request-type');
+        const idCardField = document.getElementById('id-card-field');
+        const ratingModal = document.getElementById('rating-modal');
+
+        // Event Listeners
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (window.accountLocked && loginForm.username.value === 'user') {
+                loginError.textContent = '错误：该账户已被风险控制系统锁定！';
+                loginError.classList.remove('hidden');
+                return;
+            }
+            loginError.classList.add('hidden');
+            loginScreen.classList.add('hidden');
+            appContainer.classList.remove('hidden');
+        });
+
+        document.getElementById('reset-password-btn').addEventListener('click', () => {
+            loginFormContainer.classList.add('hidden');
+            passwordResetContainer.classList.remove('hidden');
+        });
+
+        document.getElementById('back-to-login-btn').addEventListener('click', () => {
+            passwordResetContainer.classList.add('hidden');
+            loginFormContainer.classList.remove('hidden');
+        });
+
+        document.getElementById('submit-reset-btn').addEventListener('click', () => {
+            const reason = document.getElementById('reset-reason').value;
+            const messageBox = document.getElementById('reset-message');
+            if (reason.length < 200) {
+                 messageBox.textContent = '错误：情况说明未达到200字要求！';
+                 messageBox.classList.remove('hidden', 'bg-blue-200', 'border-blue-700');
+                 messageBox.classList.add('bg-red-200', 'border-red-700');
+            } else {
+                messageBox.textContent = '申请已提交。根据规定，请本人携带工牌及有效证件前往信息中心办理。';
+                messageBox.classList.remove('hidden', 'bg-red-200', 'border-red-700');
+                messageBox.classList.add('bg-blue-200', 'border-blue-700');
+            }
+        });
+
+        requestTypeSelect.addEventListener('change', (e) => {
+            idCardField.classList.toggle('hidden', e.target.value !== 'anonymous-report');
+        });
+
+        submitButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                isAnonymousReport = requestTypeSelect.value === 'anonymous-report';
+                if (isAnonymousReport && !document.getElementById('id-card').value) {
+                    alert('错误：为确保举报的严肃性，身份证号码为必填项。');
+                    return;
+                }
+                if (!requestForm.title.value || !requestForm.content.value) {
+                    alert('错误：标题和内容是必填的发力点。');
+                    return;
+                }
+                startProcess();
+            });
+        });
+
+        document.getElementById('five-star').addEventListener('click', () => {
+            ratingModal.classList.add('hidden');
+            finalizeReset();
+        });
+
+        // Functions
+        function startProcess() {
+            if (window.briberyFactor > 0 && window.briberyFactor < 1000 && Math.random() < 0.5) {
+                addStatusUpdate('系统告警', '检测到异常操作，疑似触发廉政风险！您的行为已被记录，账户已锁定！', 'error');
+                window.accountLocked = true;
+                setTimeout(showRatingModal, 3000);
+                return;
+            }
+
+            disableForm();
+            statusUpdates.innerHTML = '';
+            addStatusUpdate('正在提交...', '系统正在打通数据壁垒，构建联动矩阵...', 'loading');
+            
+            setTimeout(() => {
+                addStatusUpdate('初步研判完成', '为确保流程闭环，请登录内部OA系统进行深度流转。', 'success');
+                const oaButton = document.createElement('button');
+                oaButton.textContent = '登录OA系统';
+                oaButton.className = 'mt-2 w-full win-button py-2';
+                oaButton.onclick = () => {
+                    oaButton.disabled = true;
+                    oaButton.textContent = '正在跳转...';
+                    simulateOaProcess(0);
+                };
+                statusUpdates.appendChild(oaButton);
+                scrollToBottom();
+            }, 1000 + Math.random() * 1000); // 加快一点节奏
+        }
+
+        function simulateOaProcess(stepIndex) {
+            if (stepIndex >= oaSteps.length) {
+                const rejection = finalRejections[Math.floor(Math.random() * finalRejections.length)];
+                addStatusUpdate('最终答复', rejection, 'final');
+                resetForm();
+                return;
+            }
+
+            const step = oaSteps[stepIndex];
+            addStatusUpdate(`第 ${stepIndex + 1} 环：${step.name}`, '处理中...', 'loading');
+
+            setTimeout(() => {
+                const adjustment = (window.briberyFactor / 200000);
+                const effectiveFailRate = Math.max(0, step.failRate - adjustment);
+
+                if (Math.random() >= effectiveFailRate) {
+                    updateLastStatus('... 已通过');
+                    simulateOaProcess(stepIndex + 1);
+                } else {
+                    addStatusUpdate('流程中止', step.failMsg, 'error');
+                    resetForm();
+                }
+            }, 500 + Math.random() * 500); // 大幅加快节奏
+        }
+        
+        function logout() {
+            appContainer.classList.add('hidden');
+            loginScreen.classList.remove('hidden');
+            loginForm.username.value = '';
+            loginForm.password.value = '';
+            statusUpdates.innerHTML = '<div class="text-center text-gray-500 pt-16"><p class="mt-4">暂无流转事项</p></div>';
+            window.briberyFactor = 0;
+            isAnonymousReport = false;
+        }
+
+        function addStatusUpdate(title, message, type) {
+            const item = document.createElement('div');
+            item.className = 'status-item p-1 border-b';
+            
+            let titleColor = '';
+            if (type === 'error') titleColor = 'text-red-700 font-bold';
+            else if (type === 'success') titleColor = 'text-green-700';
+            else titleColor = 'text-black';
+
+            item.innerHTML = `<p><strong class="${titleColor}">${title}:</strong> ${message}</p>`;
+            
+            statusUpdates.appendChild(item);
+            scrollToBottom();
+        }
+
+        function updateLastStatus(newMessage) {
+            const lastItem = statusUpdates.querySelector('.status-item:last-child p');
+            if(lastItem) {
+                lastItem.innerHTML = lastItem.innerHTML.replace('处理中...', '处理完毕') + ` <span class="font-bold text-green-700">${newMessage}</span>`;
+            }
+        }
+
+        function disableForm() {
+            requestForm.querySelectorAll('input, textarea, select, button').forEach(el => el.disabled = true);
+        }
+
+        function resetForm() {
+            addStatusUpdate('流程结束', '感谢您的使用，请对本次服务进行评价。', 'success');
+            
+            if (isAnonymousReport) {
+                setTimeout(() => {
+                    addStatusUpdate('系统告警', '检测到高风险匿名行为。为维护系统稳定，您的账户已被冻结。理由：行为不端。', 'error');
+                    window.accountLocked = true;
+                    setTimeout(showRatingModal, 1000);
+                }, 500);
+            } else {
+                setTimeout(showRatingModal, 500);
+            }
+        }
+
+        function showRatingModal() {
+            ratingModal.classList.remove('hidden');
+        }
+
+        function finalizeReset() {
+            if (window.accountLocked) {
+                logout();
+            } else {
+                requestForm.querySelectorAll('input, textarea, select, button').forEach(el => el.disabled = false);
+                window.briberyFactor = 0;
+                isAnonymousReport = false;
+            }
+        }
+        
+        function scrollToBottom() {
+            statusUpdates.scrollTop = statusUpdates.scrollHeight;
+        }
+    </script>
+</body>
+</html>
